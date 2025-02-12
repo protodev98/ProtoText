@@ -5,7 +5,6 @@ project(ProtoText)
 # Set Unicode definition
 add_definitions(-DUNICODE -D_UNICODE)
 
-
 #The /MANIFEST:NO flag tells the linker not to generate or embed a manifest.
 if (WIN32)
     set(CMAKE_SHARED_LINKER_FLAGS /MANIFEST:NO)

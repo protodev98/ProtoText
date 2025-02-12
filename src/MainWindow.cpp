@@ -88,7 +88,6 @@ LPCWSTR ProtoText::MainWindow::ClassName() const
 
 LRESULT ProtoText::MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	HWND hwnd = MainWindow::WindowHandle();
 	switch (uMsg)
 	{
 
@@ -100,9 +99,9 @@ LRESULT ProtoText::MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lP
 
 		case WM_CLOSE:
 		{
-			if (MessageBox(hwnd, L"Really quit?", L"My application", MB_OKCANCEL) == IDOK)
+			if (MessageBox(m_hwnd, L"Really quit?", L"My application", MB_OKCANCEL) == IDOK)
 			{
-				DestroyWindow(hwnd);
+				DestroyWindow(m_hwnd);
 			}
 			// Else: User canceled. Do nothing.
 			return 0;
@@ -115,15 +114,22 @@ LRESULT ProtoText::MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lP
 			return 0;
 		}
 
+		case WM_KEYDOWN:
+		{
+			SetFocus(m_hwndTextEditor);
+			SendMessage(m_hwndTextEditor, WM_CHAR, wParam, lParam);
+			return 0;
+		}
 	
 		case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
-			HDC hdc = BeginPaint(hwnd, &ps);
+			HDC hdc = BeginPaint(m_hwnd, &ps);
 
+			SetFocus(m_hwndTextEditor);
 			//All paint occurs here, between BeginPaint and EndPaint
 			FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 9));
-			EndPaint(hwnd, &ps);
+			EndPaint(m_hwnd, &ps);
 			return 0;
 		}
 	
@@ -133,18 +139,18 @@ LRESULT ProtoText::MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lP
 		{
 			//Get MainWindow resized coordinates
 			RECT mainWindowRect;
-			GetClientRect(hwnd, &mainWindowRect);
+			GetClientRect(m_hwnd, &mainWindowRect);
 
 			RECT toolbarRect;
 			GetClientRect(m_hwndToolbar, &toolbarRect);
 			int toolbarHeight = toolbarRect.bottom - toolbarRect.top;
 			
 			MoveWindow(m_hwndToolbar, 0, 0, mainWindowRect.right, toolbarHeight, TRUE);
-
 			MoveWindow(m_hwndTextEditor, toolbarRect.left, toolbarRect.bottom, mainWindowRect.right, mainWindowRect.bottom, TRUE);
+
 			return 0;
 		}
 	}
 
-	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	return DefWindowProc(m_hwnd, uMsg, wParam, lParam);
 }
