@@ -5,25 +5,88 @@
 #include "Window.h"
 #include <d2d1.h>
 #include <dwrite.h>
+#include <dwrite_1.h>
+#include <string>
+#include "UtilFunctions.h"
+#include <vector>
+
+#define TIMER 1001
 
 namespace ProtoText
 {
+	struct D2D1Config
+	{
+	public:
+		ID2D1Factory* d2d1Factory;
+		IDWriteFactory* dWriteFactory;
+		IDWriteTextFormat* dWriteTextFormat;
+		ID2D1HwndRenderTarget* hwndRenderTarget;
+		ID2D1SolidColorBrush* blackBrush;
+		IDWriteTextLayout* textLayout;
+
+		D2D1Config() : d2d1Factory(nullptr), dWriteFactory(nullptr), dWriteTextFormat(nullptr),
+			hwndRenderTarget(nullptr), blackBrush(nullptr), textLayout(nullptr)
+		{
+
+		}
+	};
+
+	struct TextProperties
+	{
+	public:
+		FLOAT fontSize;
+		FLOAT baseline;
+		FLOAT lineSpacing;
+
+		TextProperties(): fontSize(15.0f), baseline(12.0f), lineSpacing(20.0f)
+		{
+
+		}
+
+		TextProperties(FLOAT fs, FLOAT bl, FLOAT ls) : fontSize(fs), baseline(bl), lineSpacing(ls)
+		{
+
+		}
+
+		void Multiplier(FLOAT multiplier)
+		{
+			fontSize *= multiplier;
+			lineSpacing *= multiplier;
+			baseline *= multiplier;
+		}
+	};
+
+	struct Caret
+	{
+	public:
+		FLOAT topX, topY;
+		FLOAT bottomX, bottomY;
+		FLOAT strokeWidth;
+		UINT currentLine;
+		bool isCaretVisible;
+
+		Caret(): topX(0.0f), topY(0.0f), bottomX(0.0f), bottomY(0.0f), strokeWidth(1.5f), currentLine(1), isCaretVisible(true)
+		{
+
+		}
+	};
+
 	class TextEditor : public ProtoText::Window<TextEditor>
 	{
 	private:
-		IDWriteFactory* mp_dWriteFactory;
-		IDWriteTextFormat* mp_dWriteTextFormat;
-		WCHAR* mp_text;
-		UINT32 m_textLength;
+		std::wstring text;
+		TextProperties textProperties;
+		Caret caret;
+		D2D1Config config;
 
-		ID2D1Factory* mp_d2d1Factory;
-		ID2D1HwndRenderTarget* mp_hwndRenderTarget;
-		ID2D1SolidColorBrush* mp_blackBrush;
+		//FLOAT dpiScaleX, dpiScaleY;
 
 		HRESULT Initialize();
 		HRESULT OnResize();
 		void CleanUp();
 		void RenderText();
+		void OnKeyPress(WPARAM wParam);
+
 	public:
 		TextEditor();
 		PCWSTR  ClassName() const;
