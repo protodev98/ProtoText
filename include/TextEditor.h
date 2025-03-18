@@ -78,16 +78,14 @@ namespace ProtoText
 		TextProperties textProperties;
 		Caret caret;
 		D2D1Config config;
-		UINT32 lineCount;
 
-		FLOAT dpiScaleX, dpiScaleY;
+		//FLOAT dpiScaleX, dpiScaleY;
 
 		HRESULT Initialize();
 		HRESULT OnResize();
 		void CleanUp();
 		void RenderText();
 		void OnKeyPress(WPARAM wParam);
-		void UpdateCaret();
 
 	public:
 		TextEditor();

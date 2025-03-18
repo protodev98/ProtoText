@@ -1,6 +1,6 @@
 #include "TextEditor.h"
 
-ProtoText::TextEditor::TextEditor():config(), text(), lineCount(1), caret(), textProperties(), dpiScaleX(1.0f), dpiScaleY(1.0f)
+ProtoText::TextEditor::TextEditor():config(), text(), caret(), textProperties()
 {
 	
 }
@@ -10,7 +10,9 @@ HRESULT ProtoText::TextEditor::Initialize()
 	/*
 		DEVICE INDEPENDENT RESOURCES
 	*/
-	//Already initialized 'd2d1Factory' and 'dWriteFactory' in WM_CREATE
+
+	DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+		reinterpret_cast<IUnknown**>(&config.dWriteFactory));
 
 	HRESULT hr = config.dWriteFactory->CreateTextFormat(
 		L"Gabriola",
@@ -42,22 +44,9 @@ HRESULT ProtoText::TextEditor::Initialize()
 		}
 	}
 
-	/*
-	DWRITE_TEXT_METRICS textMetrics;
-	config.textLayout->GetMetrics(&textMetrics);
-
-	HDC hdc = GetDC(m_hwnd);
-	TEXTMETRIC tm;
-	GetTextMetrics(hdc, &tm);
-
-	CreateCaret(m_hwnd, nullptr, tm.tmAveCharWidth, tm.tmHeight);
-	RECT editorRect;
-	GetClientRect(m_hwnd, &editorRect);
-
-	FLOAT caretCorrection = textProperties.fontSize;
-	SetCaretPos(editorRect.left, editorRect.top + caretCorrection);
-	ShowCaret(m_hwnd);
-	*/
+	//Initialize Caret X
+	caret.bottomX = 1.0f;
+	caret.topX = 1.0f;
 
 	return hr;
 }
@@ -90,51 +79,47 @@ void ProtoText::TextEditor::RenderText()
 	HRESULT hr = config.dWriteFactory->CreateTextLayout(textString, textLength, config.dWriteTextFormat, maxWidth, maxHeight, &config.textLayout);
 
 	config.textLayout->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, textProperties.lineSpacing, textProperties.baseline);
-	if (SUCCEEDED(hr) && lineCount)
+	if (SUCCEEDED(hr))
 	{
 		/*
-		* 
-		* 
-		* 
-		* 
-		* 
-				FIX THIS
-		
-		
-		
-		
-		std::vector<DWRITE_LINE_METRICS> lineMetrics;
-		UINT32 metricLineCount = 1;
-
-		lineMetrics.resize(metricLineCount);
-		config.textLayout->GetLineMetrics(lineMetrics.data(), metricLineCount, &metricLineCount);
-
-		//CARET
-		UINT32 multiple = (metricLineCount == 0 ? 1 : metricLineCount);
-		FLOAT correction = ((textProperties.baseline - textProperties.lineSpacing) * multiple);
-		
-		caret.topX = 1.0f;
-		caret.topY = (textProperties.fontSize - correction/2);
-
-		caret.bottomY = caret.topY + textProperties.fontSize;
-		caret.bottomX = 1.0f;
+			CARET - BEGIN
 		*/
 
+		//Determine X components
+		DWRITE_HIT_TEST_METRICS hitMetrics;
+		float caretX = 0.0f, caretY = 0.0f;
+
+		HRESULT hr = config.textLayout->HitTestTextPosition(
+			text.length(),
+			TRUE,
+			&caretX,
+			&caretY,
+			&hitMetrics
+		);
+
+		caret.topX = caretX;
+		caret.bottomX = caretX;
+
+		//Determine Y components
 		std::vector<DWRITE_LINE_METRICS> lineMetrics;
 		UINT32 metricLineCount = 1;
+
+		/* This call is to determine the line count accurately to allocate a buffer;
+		* We use this to allocate a buffer and pass it to the second call, which returns the metrics we want
+		*/
 		config.textLayout->GetLineMetrics(nullptr, metricLineCount, &metricLineCount);
 
 		lineMetrics.resize(metricLineCount);
 		config.textLayout->GetLineMetrics(lineMetrics.data(), metricLineCount, &metricLineCount);
 
-		//CARET
 		UINT32 multiple = (metricLineCount == 0 ? 1 : metricLineCount);
 
 		caret.bottomY = textProperties.baseline + (multiple - 1) * textProperties.lineSpacing;
-		caret.bottomX = 1.0f;
-
-		caret.topX = 1.0f;
 		caret.topY = caret.bottomY - textProperties.baseline;
+
+		/*
+			CARET - END
+		*/
 
 		config.hwndRenderTarget->DrawTextLayout(D2D1::Point2F(rc.left, rc.top), config.textLayout, config.blackBrush);
 	}
@@ -144,88 +129,38 @@ void ProtoText::TextEditor::OnKeyPress(WPARAM wParam)
 {
 	WCHAR character = (WCHAR)wParam;
 
-	POINT caretPoint;
-	GetCaretPos(&caretPoint);
-
-	FLOAT caretCorrection = 12.0f * dpiScaleX;
-
-	//if backspace
-	if (wParam == VK_BACK && !text.empty())
+	switch (wParam)
 	{
-		text.pop_back();
-		size_t caretPosition = text.length(); // Caret at the end of the string
+		//Backspace
+		case VK_BACK:
+		{
+			if (!text.empty())
+			{
+				text.pop_back();
+			}
 
-		DWRITE_HIT_TEST_METRICS hitMetrics;
-		float caretX = 0.0f, caretY = 0.0f;
+			break;
+		}
 
-		// Calculate the caret's precise position
-		HRESULT hr = config.textLayout->HitTestTextPosition(
-			caretPosition, // Index of the character to align the caret
-			FALSE,         // FALSE = leading edge; TRUE = trailing edge
-			&caretX,
-			&caretY,
-			&hitMetrics
-		);
+		//Enter Key
+		case VK_RETURN:
+		{
+			text += character;
 
+			caret.topX = 1.0f;
+			caret.bottomX = 1.0f;
 
-		SetCaretPos(caretX * dpiScaleX, caretY + caretCorrection);
+			break;
+		}
+
+		//Every other keys
+		default:
+		{
+			text += character;
+			break;
+		}
+
 	}
-	else if (wParam == VK_RETURN)
-	{
-		text += character;
-		size_t caretPosition = text.length(); // Caret at the end of the string
-
-		DWRITE_HIT_TEST_METRICS hitMetrics;
-		float caretX = 0.0f, caretY = 0.0f;
-
-		// Calculate the caret's precise position
-		HRESULT hr = config.textLayout->HitTestTextPosition(
-			caretPosition, // Index of the character to align the caret
-			FALSE,         // FALSE = leading edge; TRUE = trailing edge
-			&caretX,
-			&caretY,
-			&hitMetrics
-		);
-
-		SetCaretPos(caretX * dpiScaleX, caretPoint.y + (12.0f * dpiScaleX));
-	}
-	else
-	{
-		text += character;
-		size_t caretPosition = text.length(); // Caret at the end of the string
-
-		DWRITE_HIT_TEST_METRICS hitMetrics;
-		float caretX = 0.0f, caretY = 0.0f;
-
-		// Calculate the caret's precise position
-		HRESULT hr = config.textLayout->HitTestTextPosition(
-			caretPosition, // Index of the character to align the caret
-			FALSE,         // FALSE = leading edge; TRUE = trailing edge
-			&caretX,
-			&caretY,
-			&hitMetrics
-		);
-
-		SetCaretPos(caretX * dpiScaleX, caretY + caretCorrection);
-	}
-}
-
-void ProtoText::TextEditor::UpdateCaret()
-{
-	/*
-	//For default configuration - pass negative values when called
-	if (x > 0 && y > 0)
-		SetCaretPos(x, y);
-
-	POINT point = { 0, 0 };
-	DWRITE_TEXT_METRICS textMetrics;
-	config.textLayout->GetMetrics(&textMetrics);
-	
-	GetCaretPos(&point);
-
-	//This for one line
-	SetCaretPos(textMetrics.widthIncludingTrailingWhitespace * dpiScaleX, point.y); //Muliply with dpi made it work
-	*/
 }
 
 void ProtoText::TextEditor::CleanUp()
@@ -247,34 +182,29 @@ PCWSTR ProtoText::TextEditor::ClassName() const
 
 LRESULT ProtoText::TextEditor::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	HDC hdc = GetDC(m_hwnd);
-
-	RECT rc;
-	GetClientRect(m_hwnd, &rc);
-
 	switch (uMsg)
 	{
 		case WM_CREATE:
 		{
+			//Created this here instead of inside Intialize() because we need it to call GetDesktopDpi()
 			HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &config.d2d1Factory);
 			
 			if (SUCCEEDED(hr))
 			{
-				hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
-					reinterpret_cast<IUnknown**>(&config.dWriteFactory));
+				FLOAT dpiX, dpiY;
+				config.d2d1Factory->GetDesktopDpi(&dpiX, &dpiY);
+
+				FLOAT dpiScaleX = dpiX / USER_DEFAULT_SCREEN_DPI;
+				//dpiScaleY = dpiY / USER_DEFAULT_SCREEN_DPI;
+
+				textProperties.Multiplier(dpiScaleX);
+
+				Initialize();
+
+				//500ms - Triggers WM_TIMER => For blinking custom Caret
+				SetTimer(m_hwnd, TIMER, 500, (TIMERPROC) nullptr);
 			}
 
-			FLOAT dpiX, dpiY;
-			config.d2d1Factory->GetDesktopDpi(&dpiX, &dpiY);
-			
-			dpiScaleX = dpiX / USER_DEFAULT_SCREEN_DPI;
-			dpiScaleY = dpiY / USER_DEFAULT_SCREEN_DPI;
-			
-			textProperties.Multiplier(dpiScaleX);
-
-			Initialize();
-			SetTimer(m_hwnd, TIMER, 500, (TIMERPROC) nullptr);
-			
 			return 0;
 		}
 
@@ -313,6 +243,7 @@ LRESULT ProtoText::TextEditor::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lP
 
 		case WM_TIMER:
 		{
+			/* Invalidate Caret - For blinking */
 			bool isCaretVisible = caret.isCaretVisible;
 			caret.isCaretVisible = !isCaretVisible;
 
@@ -329,9 +260,11 @@ LRESULT ProtoText::TextEditor::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lP
 
 		case WM_SIZE:
 		{
+			RECT rc;
+			GetClientRect(m_hwnd, &rc);
+
 			D2D1_SIZE_U size = D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top);
 			config.hwndRenderTarget->Resize(size);
-			//OnResize();
 			return 0;
 		}
 
